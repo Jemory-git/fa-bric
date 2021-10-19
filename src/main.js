@@ -12,6 +12,7 @@ window.fbc = fabric
 
 let fns = {
   log(...rest) {// goutou 2020-8
+    return console.log(...rest);
     try {
       rest = rest.map(c => {
         return typeof c === 'function' || c === undefined || Object.is(NaN, c) ? c : JSON.parse(JSON.stringify(c));
@@ -19,7 +20,7 @@ let fns = {
     } catch (error) {
       console && console.warn('该对象存在循环引用，无法stringify');
     }
-    console && console.info(...rest);
+    console && console.log(...rest);
   },
   isObject(o) {
     return typeof o === 'object' && o !== null && !Array.isArray(o);
