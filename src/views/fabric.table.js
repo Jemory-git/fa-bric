@@ -2,9 +2,13 @@
 
 
 export default function (fabric, canvas) {
+    // if (!!fabric.Table) return;
 
+    const multiply = fabric.util.multiplyTransformMatrices;
+    const invert = fabric.util.invertTransform;
 
     const tableMap = new Map();
+    const tableRelationAllItems = new Map();
 
     const TableCell = fabric.util.createClass(fabric.Rect, {
         type: 'tableCell',
@@ -19,7 +23,7 @@ export default function (fabric, canvas) {
         }
     });
 
-    const Table = fabric.util.createClass(fabric.Group, {
+    const Table = fabric.Table = fabric.util.createClass(fabric.Group, {
 
         type: 'table',
         // subTargetCheck: true,
@@ -27,8 +31,10 @@ export default function (fabric, canvas) {
             position = { x: 100, y: 100 },
             colunms = [100, 100, 100],
             rows = [100, 100, 100],
-            fillColor = 'rgba(0,0,0,0.1)',
-            hoverFillColor,
+            fillColor = 'rgba(0,0,0,0)',
+            strokeColor = '#ddd',
+            hoverFillColor = 'rgba(0,0,0,0.1)',
+            objectOptions = {}
         } = {}) {
 
             this.position = position;
@@ -55,6 +61,7 @@ export default function (fabric, canvas) {
             this.colunms = colunms;
             this.rows = rows;
             this.fillColor = fillColor;
+            this.strokeColor = strokeColor;
             this.hoverFillColor = hoverFillColor;
             // this.hasControls = false
             // this.hasBorders = false;
@@ -62,6 +69,21 @@ export default function (fabric, canvas) {
 
             const cells = this.makeCells();
             this.cells = cells;
+            for (const c of cells) {
+                c.group = this;// 添加父级引用
+            }
+
+            // if (objectOptions.originX) {
+            //     this.originX = objectOptions.originX;
+            // }
+            // if (objectOptions.originY) {
+            //     this.originY = objectOptions.originY;
+            // }
+            // this._calcBounds();
+            // this._updateObjectsCoords();
+            // fabric.Object.prototype.initialize.call(this, objectOptions);
+            // this.setCoords();
+
             this.bindEvents();
             // this.selection = false
             this.callSuper('initialize', cells);
@@ -88,28 +110,37 @@ export default function (fabric, canvas) {
                 return new TableCell({
                     left: c.position.x,
                     top: c.position.y,
-                    fill: this.fillColor,
                     width: c.w,
                     height: c.h,
+                    fill: this.fillColor,
+                    stroke: this.strokeColor,
                 })
             })
             return cells;
         },
         bindEvents() {
+            // rect.onSelect = function () {
+            //     console.log(arguments)
+            //     return true;
+            // }
+            // }
+
             // let followers;
-            // for (const cell of this.cells) {
-            // rect.on('mousedown', ({ e, target }) => {
-            //     log('rect down', target)
-            //     followers = rects.filter(o => o !== target);
-            //     const bossMatrix = target.calcTransformMatrix();
+            // this.on('mousedown', ({ e, target }) => {
+            //     if (this.relatedItems.size === 0) return;
+            //     log('rect down', this)
+            //     followers = [...this.relatedItems.keys()];
+            //     const bossMatrix = this.calcTransformMatrix();
             //     const invertedBossMatrix = invert(bossMatrix);
             //     followers.forEach(o => {
             //         o.relationship = multiply(invertedBossMatrix, o.calcTransformMatrix());
             //     });
             // })
-            // rect.on('moving', ({ e, target }) => {
+            // this.on('moving', (o) => {
+            //     log('moving')
+            //     if (this.relatedItems.size === 0) return;
             //     followers.forEach(o => {
-            //         const newMatrix = multiply(rect.calcTransformMatrix(), o.relationship);
+            //         const newMatrix = multiply(this.calcTransformMatrix(), o.relationship);
             //         const transform = fabric.util.qrDecompose(newMatrix);
             //         o.set({ flipX: false, flipY: false, });
             //         o.setPositionByOrigin({ x: transform.translateX, y: transform.translateY }, 'center', 'center');
@@ -117,27 +148,26 @@ export default function (fabric, canvas) {
             //         o.setCoords();
             //     });
             // })
-            // cell.on('mouseup', ({ e, target, subTargets }) => {
-            // followers = [];
-            // log('rect up', subTargets)
-            // subTargets[0].set('fill', 'blue')
-            // canvas.requestRenderAll()
+            // this.on('mouseup', () => {
+            //     followers = null;
             // })
-            // rect.on('selected', ({ e, target }) => {
-            //     log('selected', target)
-            //     window.selected.set(target, true)
-            // })
-            // rect.onSelect = function () {
-            //     console.log(arguments)
-            //     return true;
-            // }
-            // }
 
             // 选中表格时，同时选中关联的对象
             this.on('selected', ({ e, target }) => {
                 if (target.relatedItems.size === 0) return;
-                const aGroup = new fabric.ActiveSelection([...target.relatedItems.keys(), this], { canvas });
-                canvas.setActiveObject(aGroup, e);
+
+                const objects = canvas.getActiveObjects()
+
+                if (objects.length === 1) {// 如果只选中这个table，就创建分组
+                    const aGroup = new fabric.ActiveSelection([...target.relatedItems.keys(), target], { canvas });
+                    canvas.setActiveObject(aGroup, e);
+                    return;
+                }
+
+                // 如果选中多个对象，就把本table的关联对象更新进组
+                for (const c of target.relatedItems.keys()) {
+                    if (!objects.find(cc => cc === c)) canvas._updateActiveSelection(c, e);
+                }
             })
         },
 
@@ -145,31 +175,33 @@ export default function (fabric, canvas) {
             return fabric.util.object.extend(this.callSuper('toObject'));
         },
         addToRelationship(obj, cell) {// 添加关联关系
-            this.relatedItems.set(obj, { target: obj, table: this, cell })
+            obj.relatedTable = this;
+            this.relatedItems.set(obj, { target: obj, table: this, cell });
+            tableRelationAllItems.set(obj);// 另存一份
         },
         delToRelationship(obj) {// 删除关联关系
+            obj.relatedTable = undefined;
             this.relatedItems.delete(obj)
+            tableRelationAllItems.delete(obj);
         },
         resetTableFill() {// 重置表格cell的填充色
             for (const c of this.cells) {
-                c.fill = this.fillColor;
+                // c.fill = this.fillColor;
+                c.set({ fill: this.fillColor })
             }
         },
-
-
-        _render(ctx) {
-            this.callSuper('_render', ctx);
-            for (const c of this.cells) {
-                c.table = this;// 添加父级引用
-            }
-        }
     });
 
-    canvas.on('object:moving', ({ e, target }) => {
+    function canContinue(target) {
         if (tableMap.get(target)) return;
         if (target.type === "activeSelection") return;
-        if (!window.iwb_allTargets) return;
+        if (!fabric.iwb_allTargets) return;
         if (target.type !== "rect") return;
+        return true;
+    }
+
+    canvas.on('object:moving', ({ e, target }) => {
+        if (!canContinue(target)) return;
         // const pointer = canvas.getPointer(e);
         // for (const table of tableMap.keys()) {
         //     if (table.containsPoint(pointer)) log('table')
@@ -177,50 +209,50 @@ export default function (fabric, canvas) {
         //         if (item.containsPoint(pointer)) log('item')
         //     }
         // }
+        const targetIsBinding = tableRelationAllItems.has(target);
 
         // 在事件关联的目标中找出表格
-        const tables = window.iwb_allTargets.filter(c => c.type === 'table');
+        const tables = fabric.iwb_allTargets.filter(c => c.type === 'table');
 
-        // 如果事件未关联表格，就清除所有表格和target的关联
+        // 如果事件未关联表格
         if (tables.length === 0) {
-            for (const table of tableMap.keys()) {
-                table.delToRelationship(target);
-                table.resetTableFill();
+            // 如果目标已经绑定到表格，就清除表格和target的关联
+            if (targetIsBinding) {
+                target.relatedTable.resetTableFill();
+                target.relatedTable.delToRelationship(target);
             }
-            window.requestAnimationFrame(() => {
-                canvas.requestRenderAll()
-            })
-            log(tableMap.keys())
             return;
         }
 
-        if (tables.length === 1) tables[0].bringToFront();// 如果只有一个事件关联表格，提高这个表格的层级
-        const cells = window.iwb_allTargets.filter(c => c.type === 'tableCell');// 在事件关联的目标中找出表格cells
+        // if (tables.length === 1) tables[0].bringToFront();// 如果只有一个事件关联表格，提高这个表格的层级
         const upperTable = tables.shift();// 最上层的表格
-        const theCell = cells.find(c => upperTable.cells.contains(c));// 最上层表格的事件关联cell
+        const uTableNoBinding = !upperTable.relatedItems.has(target);// 和最上层表格没有绑定
 
-        // target和事件关联表格建立联系
-        if (!upperTable.relatedItems.has(target)) upperTable.addToRelationship(target, theCell);
-
-        // 撤销其他表格与target的联系
-        for (const table of tableMap.keys()) {
-            if (table === upperTable) continue;
-            table.delToRelationship(target);
-            table.resetTableFill();
+        // 如果目标已经绑定到表格，并且和最上层表格没有绑定，就撤销其他表格与target的联系
+        if (targetIsBinding && uTableNoBinding) {
+            for (const table of tableMap.keys()) {
+                if (table === upperTable) continue;
+                table.resetTableFill();
+                table.delToRelationship(target);
+            }
         }
 
-        target.bringToFront();// 提高target层级
+        const cells = fabric.iwb_allTargets.filter(c => c.type === 'tableCell');// 在事件关联的目标中找出表格cells
+        const theCell = cells.find(c => upperTable.cells.contains(c));// 最上层表格的事件关联cell
+        // target和最上层表格建立联系
+        if (uTableNoBinding) upperTable.addToRelationship(target, theCell);
+
+        // target.bringToFront();// 提高target层级
         upperTable.resetTableFill();
         theCell.set('fill', upperTable.hoverFillColor);// 修改
-        // canvas.requestRenderAll()
-
-
     });
     canvas.on('object:moved', ({ e, target }) => {
-        if (tableMap.get(target)) return;
-        log('moved')
+        if (!canContinue(target)) return;
+        log(target)
     });
-
+    // canvas.on('selection:created', ({ e, selected, target }) => {
+    //     log('selection:created')
+    // });
 
     // let mouseDowning = false;
     // canvas.on('mouse:down', ({ e, target }) => {

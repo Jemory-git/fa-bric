@@ -15,25 +15,22 @@ export default {
     name: 'Home',
     components: {},
     mounted() {
-        window.selected = new Map()
 
         const fabric = this.$fbc;
-        const multiply = fabric.util.multiplyTransformMatrices;
-        const invert = fabric.util.invertTransform;
         const canvas = window.cvs = new fabric.Canvas('fbc', {
             width: 1000,
             height: 600
         });
 
-        fabircPolyfill(canvas);
-        console.log('canvas', canvas);
+        fabircPolyfill(fabric, canvas);
+        log('canvas', canvas);
 
         const Table = fabricTable(fabric, canvas);
         const table = new Table({ hoverFillColor: 'blue' });
         const table2 = new Table({ hoverFillColor: 'red' });
-        table.on('mousedown', ({ e, target }) => {
-            log('table down', target)
-        })
+        // table.on('mousedown', ({ e, target }) => {
+        //     log('table down', target)
+        // })
         // table.hasControls = false
         // table.hasBorders = false;
         // table.onSelect = function () {
@@ -71,7 +68,7 @@ export default {
 
             fill: 'green',//填充的颜色
 
-            width: 30,//方形的宽度
+            width: 150,//方形的宽度
 
             height: 30//方形的高度
 
@@ -86,9 +83,10 @@ export default {
             radius: 20
 
         });
-        rect.on('mousedown', () => {
-            log('rect down')
-        })
+        // rect.activeOn = 'up'
+        // rect.onSelect = function () {
+        //     log('e', canvas.getActiveObjects())
+        // }
 
         canvas.add(rect);
         canvas.add(circle);

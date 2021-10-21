@@ -4,7 +4,7 @@ Array.prototype.contains = function (o) {
         if (c === o) return true;
     }
 }
-export default function (canvas) {
+export default function (fabric, canvas) {
     Object.getPrototypeOf(canvas)._cacheTransformEventData = function (e) {// 改写fabric原有方法
         this._resetTransformEventData();
         this._pointer = this.getPointer(e, true);
@@ -18,9 +18,10 @@ export default function (canvas) {
             aObjects = this.getActiveObjects();
 
         if (aObjects.length === 1 && activeObject === this._searchPossibleTargets([activeObject], pointer)) {
-            const iwb_allTargets = this.iwb_searchAllTargets(this._objects, pointer);
+            const tables = this._objects.filter(c => c.type === 'table');
+            const iwb_allTargets = this.iwb_searchAllTargets(tables, pointer);
             // log('111111111111111111111111111111111111111111111', iwb_allTargets)
-            window.iwb_allTargets = iwb_allTargets;// 保存在window下
+            fabric.iwb_allTargets = iwb_allTargets;// 保存在window下
         }
     }
     Object.getPrototypeOf(canvas).iwb_searchAllTargets = function (objects, pointer) {// 新增查找目标的方法
