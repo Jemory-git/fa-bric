@@ -1,6 +1,10 @@
 <template>
     <div class="home">
         <canvas id="fbc" ref="fbc" style="width: 90%;height: 600px;border: red solid 1px;"></canvas>
+        <div>
+            <span class="button" @click="onclickDraw">draw</span>
+            <span class="button" @click="onclickSelect">select</span>
+        </div>
     </div>
 </template>
 
@@ -14,19 +18,29 @@ import fabricTable from './fabric.table.js'
 export default {
     name: 'Home',
     components: {},
+    methods: {
+        onclickDraw() {
+            window.cvs.isDrawingMode = true
+        },
+        onclickSelect() {
+            window.cvs.isDrawingMode = false
+        },
+    },
     mounted() {
 
         const fabric = this.$fbc;
         const canvas = window.cvs = new fabric.Canvas('fbc', {
             width: 1000,
-            height: 600
+            height: 600,
+            isDrawingMode: false
         });
 
-        fabircPolyfill(fabric, canvas);
+        fabric.canvas = canvas;
+        fabircPolyfill(fabric);
         log('canvas', canvas);
 
-        const Table = fabricTable(fabric, canvas);
-        const table = new Table({ hoverFillColor: 'blue' });
+        const Table = fabricTable(fabric);
+        const table = new Table({ hoverFillColor: 'blue', position: { x: 0, y: 0 } });
         const table2 = new Table({ hoverFillColor: 'red' });
         // table.on('mousedown', ({ e, target }) => {
         //     log('table down', target)
@@ -70,7 +84,20 @@ export default {
 
             width: 150,//方形的宽度
 
-            height: 30//方形的高度
+            height: 100//方形的高度
+
+        });
+        var rect3 = new fabric.Rect({
+
+            left: 180,//距离画布左侧的距离，单位是像素
+
+            top: 500,//距离画布上边的距离
+
+            fill: 'yellow',//填充的颜色
+
+            width: 100,//方形的宽度
+
+            height: 100//方形的高度
 
         });
         var circle = new fabric.Circle({
@@ -89,7 +116,8 @@ export default {
         // }
 
         canvas.add(rect);
-        canvas.add(circle);
+        // canvas.add(circle);
+        canvas.add(rect3);
         // log(canvas.viewportTransform)
         // log(rect.calcTransformMatrix())
         // log(fabric.util.multiplyTransformMatrices(canvas.viewportTransform, rect.calcTransformMatrix()))
@@ -98,3 +126,11 @@ export default {
     }
 }
 </script>
+
+<style>
+.button {
+    padding: 10px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+</style>

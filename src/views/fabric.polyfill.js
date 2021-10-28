@@ -4,7 +4,8 @@ Array.prototype.contains = function (o) {
         if (c === o) return true;
     }
 }
-export default function (fabric, canvas) {
+export default function (fabric) {
+    const canvas = fabric.canvas;
     Object.getPrototypeOf(canvas)._cacheTransformEventData = function (e) {// 改写fabric原有方法
         this._resetTransformEventData();
         this._pointer = this.getPointer(e, true);
@@ -30,6 +31,7 @@ export default function (fabric, canvas) {
         while (i--) {
             var objToCheck = objects[i];
             var pointerToUse = objToCheck.group ? this._normalizePointer(objToCheck.group, pointer) : pointer;
+            // log('this._checkTarget(pointerToUse, objToCheck, pointer)', this._checkTarget(pointerToUse, objToCheck, pointer))
             if (this._checkTarget(pointerToUse, objToCheck, pointer)) {
                 allTargets.push(objToCheck);
                 if (objToCheck instanceof fabric.Group) {
