@@ -3,6 +3,19 @@
 
 export default function (fabric) {
     const canvas = fabric.canvas;
+    const tableDrawingManager = {
+        isDrawing: false,
+        startPoint: { x: null, y: null },
+        endPoint: { x: null, y: null },
+        pathRange: {
+            xmin: null,
+            xmax: null,
+            ymin: null,
+            ymax: null
+        },
+        table: null,
+        cell: null,
+    }
     // if (!!fabric.Table) return;
 
     // const multiply = fabric.util.multiplyTransformMatrices;
@@ -269,11 +282,11 @@ export default function (fabric) {
 
     function canContinue(target) {
         if (tableMap.get(target)) return;
-        if (!fabric.iwb_allTargets) return;
+        if (!canvas.iwb_allTableTargets) return;
         if (!['rect', 'path'].contains(target.type)) return;
         return true;
     }
-    function updateTableSize(target) {
+    function updateTableSize(target, drawingOptions) {
 
         if (target.type === 'table') {
             target.updatePosition();
@@ -390,6 +403,12 @@ export default function (fabric) {
                 rItem.set({ left: rItem.left + deferx, top: rItem.top + defery, })
             }
         }
+
+        // 如果是在表格内画东西，更新drawing表格
+        if (drawingOptions?.drawing) {
+            tableDrawingManager.table = newTable;
+            tableDrawingManager.cell = newTable._objects[tableDrawingManager.theCellIndex];
+        }
     }
 
     // let movingCbEnd = true;
@@ -403,7 +422,7 @@ export default function (fabric) {
 
         const targetIsBinding = target.relatedTable?.allRelatedItems.has(target);
         // 在事件关联的目标中找出表格
-        const tables = fabric.iwb_allTargets.filter(c => c.type === 'table');
+        const tables = canvas.iwb_allTableTargets.filter(c => c.type === 'table');
 
         // 如果事件未关联表格
         if (tables.length === 0) {
@@ -428,7 +447,7 @@ export default function (fabric) {
             }
         }
 
-        const cells = fabric.iwb_allTargets.filter(c => c.type === 'tableCell');// 在事件关联的目标中找出表格cells
+        const cells = canvas.iwb_allTableTargets.filter(c => c.type === 'tableCell');// 在事件关联的目标中找出表格cells
         const theCell = cells.find(c => upperTable._objects.contains(c));// 最上层表格的事件关联cell
         // target和最上层表格建立联系
         if (uTableNoBinding) {
@@ -444,9 +463,74 @@ export default function (fabric) {
     // canvas.on('selection:created', ({ e, selected, target }) => {
     //     log('selection:created')
     // });
-    // canvas.on('path:created', ({ e, selected, target }) => {
-    //     log('path:created')
-    // });
+    canvas.on('mouse:up', (o) => {
+        if (!canvas.isDrawingMode) return;
+        tableDrawingManager.isDrawing = false;
+    });
+    canvas.on('mouse:down', ({ e, pointer, target }) => {
+        if (!canvas.isDrawingMode) return;
+        tableDrawingManager.isDrawing = true;
+        const inpointTables = canvas.iwb_findTargetsInPoint(e, 'table').slice(0, 2);
+        // 取最上层的
+        tableDrawingManager.table = inpointTables[0];
+        tableDrawingManager.cell = inpointTables[1];
+
+        const tp = tableDrawingManager.pathRange;
+        if (!tableDrawingManager.cell || !tableDrawingManager.table) {
+            tableDrawingManager.startPoint = { x: null, y: null };
+            tp.xmax = null;
+            tp.xmin = null;
+            tp.ymax = null;
+            tp.ymin = null;
+            return;
+        }
+        tableDrawingManager.theCellIndex = tableDrawingManager.table._objects.findIndex(c => c === tableDrawingManager.cell);
+        tableDrawingManager.startPoint = pointer;
+        tp.xmax = pointer.x;
+        tp.xmin = pointer.x;
+        tp.ymax = pointer.y;
+        tp.ymin = pointer.y;
+
+    });
+    canvas.on('mouse:move', (o) => {
+        const { e, pointer, target, subTargets } = o;
+        if (!canvas.isDrawingMode) return;
+        if (!tableDrawingManager.isDrawing) return;
+
+        if (!tableDrawingManager.cell || !tableDrawingManager.table) return;
+        const tp = tableDrawingManager.pathRange;
+        let tpxmax = tp.xmax;
+        let tpxmin = tp.xmin;
+        let tpymax = tp.ymax;
+        let tpymin = tp.ymin;
+        tpxmax = tp.xmax = Math.max(pointer.x, tpxmax);
+        tpxmin = tp.xmin = Math.min(pointer.x, tpxmin);
+        tpymax = tp.ymax = Math.max(pointer.y, tpymax);
+        tpymin = tp.ymin = Math.min(pointer.y, tpymin);
+        const virtualTarget = {
+            type: 'path',
+            relatedTable: tableDrawingManager.table,
+            relatedCell: tableDrawingManager.cell,
+            getBoundingRect() {
+                return {
+                    left: tpxmin,
+                    top: tpymin,
+                    width: tpxmax - tpxmin,
+                    height: tpymax - tpymin,
+                }
+            }
+        }
+
+        updateTableSize(virtualTarget, { drawing: true, theCellIndex: tableDrawingManager.theCellIndex })
+    });
+    canvas.on('path:created', ({ path }) => {
+        if (!tableDrawingManager.cell || !tableDrawingManager.table) return;
+        // 添加和表格的关联关系
+        path.relatedCell = tableDrawingManager.cell;
+        path.relatedTable = tableDrawingManager.table;
+        tableDrawingManager.cell.relatedItems.add(path);
+        tableDrawingManager.table.allRelatedItems.set(path, true);
+    });
     canvas.on('object:moved', ({ e, target }) => updateTableSize(target));
     canvas.on('object:rotating', ({ e, target }) => updateTableSize(target));
     canvas.on('object:scaling', ({ e, target }) => updateTableSize(target));

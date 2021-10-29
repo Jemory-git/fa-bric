@@ -10,36 +10,40 @@ export default function (fabric) {
         this._resetTransformEventData();
         this._pointer = this.getPointer(e, true);
         this._absolutePointer = this.restorePointerVpt(this._pointer);
-        this._target = this._currentTransform ? (this.iwb_findOtherTargets(e), this._currentTransform.target) : this.findTarget(e) || null;
+        this._target = this._currentTransform ? (this.iwb_findTableTargets(e), this._currentTransform.target) : this.findTarget(e) || null;
     }
-    Object.getPrototypeOf(canvas).iwb_findOtherTargets = function (e) {// 新增查找目标的方法
-        var ignoreZoom = true,
-            pointer = this.getPointer(e, ignoreZoom),
-            activeObject = this._activeObject,
-            aObjects = this.getActiveObjects();
+    Object.getPrototypeOf(canvas).iwb_findTableTargets = function (e) {// 新增查找目标的方法
+        const ignoreZoom = true;
+        const pointer = this.getPointer(e, ignoreZoom);
+        const activeObject = this._activeObject;
+        const aObjects = this.getActiveObjects();
 
         if (aObjects.length === 1 && activeObject === this._searchPossibleTargets([activeObject], pointer)) {
             const tables = this._objects.filter(c => c.type === 'table');
-            const iwb_allTargets = this.iwb_searchAllTargets(tables, pointer);
-            // log('111111111111111111111111111111111111111111111', iwb_allTargets)
-            fabric.iwb_allTargets = iwb_allTargets;// 保存在window下
+            this.iwb_allTableTargets = this.iwb_searchAllTargets(tables, pointer);
         }
     }
+    Object.getPrototypeOf(canvas).iwb_findTargetsInPoint = function (e, type) {// 新增查找目标的方法
+        if (type == null) return;
+        const pointer = this.getPointer(e, true);
+        let tables = this._objects.filter(c => c.type === type);
+        return this.iwb_allTableTargets = this.iwb_searchAllTargets(tables, pointer);
+    }
     Object.getPrototypeOf(canvas).iwb_searchAllTargets = function (objects, pointer) {// 新增查找目标的方法
-        var i = objects.length;
+        let i = objects.length;
         const allTargets = [];
         while (i--) {
-            var objToCheck = objects[i];
-            var pointerToUse = objToCheck.group ? this._normalizePointer(objToCheck.group, pointer) : pointer;
+            const objToCheck = objects[i];
+            const pointerToUse = objToCheck.group ? this._normalizePointer(objToCheck.group, pointer) : pointer;
             // log('this._checkTarget(pointerToUse, objToCheck, pointer)', this._checkTarget(pointerToUse, objToCheck, pointer))
-            if (this._checkTarget(pointerToUse, objToCheck, pointer)) {
-                allTargets.push(objToCheck);
-                if (objToCheck instanceof fabric.Group) {
-                    const rect = this._searchPossibleTargets(objToCheck._objects, pointer);
-                    if (rect) allTargets.push(rect);
-                }
+            if (!this._checkTarget(pointerToUse, objToCheck, pointer)) continue;
+
+            allTargets.push(objToCheck);
+            if (objToCheck instanceof fabric.Group) {
+                const subTargets = this.iwb_searchAllTargets(objToCheck._objects, pointer);
+                allTargets.push(subTargets);
             }
         }
-        return allTargets;
+        return allTargets.flat();
     }
 }
